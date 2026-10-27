@@ -6,6 +6,7 @@
 import { execSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 
 const useDocker = !process.argv.includes("--no-docker");
 
@@ -22,9 +23,27 @@ function fail(message) {
   process.exit(1);
 }
 
+// Immer die im Projekt installierte Prisma-Version nutzen – npx würde sonst
+// bei fehlender Installation eine fremde, neuere Version herunterladen.
+const prismaCli = path.join("node_modules", "prisma", "build", "index.js");
+function prisma(args, opts) {
+  run(`node "${prismaCli}" ${args}`, opts);
+}
+
 function secret() {
   return randomBytes(32).toString("base64");
 }
+
+step("Installation prüfen");
+const required = ["prisma/build/index.js", "@prisma/client/package.json", "next/package.json", "tsx/package.json"];
+const missing = required.filter((f) => !existsSync(path.join("node_modules", f)));
+if (missing.length) {
+  fail(
+    `npm install ist nicht vollständig (fehlt: ${missing.map((m) => m.split("/")[0]).join(", ")}).\n` +
+      "  Bitte `npm install` ausführen, bis es ohne „ERR!“ endet, und danach `npm run setup` erneut starten.",
+  );
+}
+console.log(`  Prisma ${JSON.parse(readFileSync(path.join("node_modules", "prisma", "package.json"), "utf8")).version} gefunden.`);
 
 step(".env anlegen");
 if (existsSync(".env")) {
@@ -56,20 +75,31 @@ if (useDocker) {
 
 step("Datenbankschema einspielen");
 let migrated = false;
+let lastError = "";
 for (let attempt = 1; attempt <= 20 && !migrated; attempt++) {
   try {
-    run("npx prisma migrate deploy", { quiet: true });
+    prisma("migrate deploy", { quiet: true });
     migrated = true;
-  } catch {
+  } catch (err) {
+    lastError = `${err.stdout ?? ""}${err.stderr ?? ""}`.trim();
+    // Falsches Passwort o. Ä. wird durch Warten nicht besser
+    if (/P1000|authentication failed/i.test(lastError)) break;
     if (attempt === 1) console.log("  Warte, bis die Datenbank bereit ist …");
     await new Promise((r) => setTimeout(r, 2000));
   }
 }
-if (!migrated) fail("Datenbank nicht erreichbar. Läuft der Container „db“ in Docker Desktop?");
+if (!migrated) {
+  const url = (readFileSync(".env", "utf8").match(/^DATABASE_URL="?([^"\n]*)/m) ?? [])[1] ?? "?";
+  console.error(`\n${lastError}`);
+  fail(
+    `Datenbank nicht erreichbar (DATABASE_URL: ${url.replace(/:[^:@/]+@/, ":***@")}).\n` +
+      "  Passt der Port in .env zu docker-compose.yml? Läuft der Container „db“ in Docker Desktop?",
+  );
+}
 console.log("  Schema ist aktuell.");
 
 step("Demo-Partner und Admin anlegen");
-run("npx prisma db seed");
+prisma("db seed");
 
 step("Demo-Anzeigen importieren");
 run("npm run -s job import");
