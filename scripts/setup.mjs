@@ -50,7 +50,7 @@ if (useDocker) {
   try {
     run("docker compose up -d");
   } catch {
-    fail("Datenbank-Container konnte nicht starten. Ist Port 5432 schon belegt (z. B. durch ein anderes Postgres)?");
+    fail("Datenbank-Container konnte nicht starten. Ist Port 5433 schon belegt? Dann in docker-compose.yml und .env einen anderen Port eintragen.");
   }
 }
 
