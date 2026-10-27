@@ -8,15 +8,16 @@ Stack: Next.js 15 (App Router) · TypeScript · PostgreSQL + Prisma · Tailwind 
 
 ## Schnellstart
 
+Voraussetzungen: Node.js 22 oder neuer, Docker Desktop (gestartet).
+
 ```bash
-cp .env.example .env          # AUTH_SECRET, DOCUMENT_ENCRYPTION_KEY, CRON_SECRET setzen (openssl rand -base64 32)
-docker compose up -d          # Postgres 16
 npm install
-npx prisma migrate dev        # Schema anlegen
-npx prisma db seed            # Vertical "housing", 2 Demo-Partner, Admin admin@example.com
-npm run job import            # Mock-Anzeigen importieren (34 Anzeigen, 3 Dubletten)
-npm run dev                   # http://localhost:3000
+npm run setup     # .env mit Zufallsschlüsseln, Postgres per Docker, Schema, Demo-Daten, Import
+npm run dev       # http://localhost:3000
 ```
+
+`npm run setup` kann gefahrlos erneut ausgeführt werden. Eine vorhandene `.env` bleibt unverändert.
+Ohne Docker: `DATABASE_URL` in `.env` auf eine eigene Postgres-Datenbank setzen und `npm run setup -- --no-docker` ausführen.
 
 Login: E-Mail eingeben. Ohne SMTP-Konfiguration erscheint der Link in der **Dev-Mailbox** unter
 `/dev/mailbox` (nur im Dev-Modus; mit `next start` nur bei `ENABLE_DEV_MAILBOX=true`).
